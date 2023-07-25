@@ -1,0 +1,173 @@
+ ***** MCNUTT - HEFNER SiC POWER MOSFET MODEL *****
+
+ ***** DYNAMIC SIMULATION CIRCUIT *****
+
+XDUT D G 0 Tj SiCMOS
+
+* Gate Circuit
+Rg G1 G 10
+Lg G1 G2 1e-09
+
+* Gate Pulse
+Vgs G2 0 PULSE(-5 20 1us 10ns 10ns 4us 8us)
+
+* DC Bus Voltage
+Vd D3 0 800
+
+* Junction Temperature
+VTj Tj 0 300
+
+* Load Current
+Id D3 D 20
+
+* Freewheeling Diode
+Df D D3 dmod
+
+.MODEL dmod D(Is=1e-10)
+
+RGSENSE G 0 10E12
+
+RDSENSE D 0 10E12
+
+.OPTIONS ABSTOL=1e-3 CHGTOL=0.01e-12 GMIN=1e-12 ITL1=1500 ITL2=2000 ITL4=1000 RELTOL= 0.005 VNTOL=1e-3
+
+.TRAN 0ns 6us 0ns 1n
+
+.PRINT TRAN I(Rg) I(XDUT.VSENSE) V(RGSENSE) V(RDSENSE)
+
+.PROBE I(Vd) V(RDSENSE) V(RGSENSE)
+
+
+.SUBCKT SiCMOS D G S Tj
+
+
+ ***** ON-STATE RESISTANCE MODEL *****
+
+
+.param A = {0.15387}
+* device active area [cm^2]
+.param Nb = {3207361500000000}
+* drift region dopant density [cm^-3]
+.param q = 1.6e-19
+* foundamental electronic charge [C]
+.param Rs = {0.0015229}
+* drain series resistance [ohm]
+.param eps_semi = {9.66*8.854e-14}
+* SiC dielectric constant [F/cm]
+.param k = 1.38e-23
+* Boltzmann´s constant
+.param Wb = {0.002}
+* metallurgical drift region width [cm]
+
+* intrinsic carrier concentration
+Eni 3 0 value = { LIMIT(4.81E15*PWR(v(Tj),1.5)*exp(-18567/v(Tj)),0,1E11)}
+REni 3 0 1E10
+
+* built-in junction potential
+EVbi 2 0 value = { LIMIT(k*v(Tj)/q*LOG(1E16*Nb/PWR(v(3),2)),0,100)}
+RVbi 2 0 1E12
+
+* quasineutral drift region width (W=Wb-Wdsj) [cm]
+EW 1 0 value = { LIMIT(Wb-SQRT(2*eps_semi*(v(D)+v(2))/q/Nb),0,1E-3)}
+RW 1 0 1E12
+
+* bulk electron mobility
+Eun 4 0 value = { LIMIT(947/(1+PWR(Nb/1.94e17,0.61))*PWR(v(Tj)/300,-2.15),0,1E3)}
+Run 4 0 1E12
+
+ERb 5 0 value = {LIMIT(Rs + v(1)/(q*A*Nb*v(4)),0,1)}
+
+ERon D D2 value = {I(VSENSE)*v(5)}
+VSENSE D2 D1 0V
+
+
+
+
+ ***** CAPACITANCES MODEL *****
+
+.param Agd = 0.015387
+* gate-drain overlap area [cm^-2]
+.param Vtd = 10
+* gate-drain overlap depletion threshold
+.param Coxd = 1.79e-10
+* gate-drain overlap oxide capacitance
+.param Cgs = 1.0886e-09
+* gate-source capacitance
+.param Fxjbe = 0.5
+* gate-drain overlap depletion charge factor at edge
+.param Fxjbm = 0.75
+* gate-drain overlap depletion charge factor at middle
+
+* gate-drain overlap inversion treshold voltage
+EVtdi 6 0 value = {Vtd-v(2)-Fxjbm*Agd/Coxd*SQRT(2*eps_semi*q*Nb*(v(2)+v(D1)))}
+RVtdi 6 0 1E12
+EVtdiedge 8 0 value = {Vtd-v(2)-Fxjbe*Agd/Coxd*SQRT(2*eps_semi*q*Nb*(v(2)+v(D1)))}
+RVtdiedge 8 0 1E12
+
+* GATE-SOURCE CAPACITANCE
+Cgs G S 1.0886e-09
+
+* gate-drain depletion capacitance
+ECgdj 7 0 value = { LIMIT(Agd*eps_semi/SQRT(2*eps_semi*(v(D1,G)+Vtd)/q/Nb),0,2n) }
+RCgdj 7 0 1E12
+
+* GATE-DRAIN CAPACITANCE
+GCgd D1 G value={ LIMIT(IF(v(G)-Vtd>=V(D1), Coxd*DDT(v(D1,G)),
++ Coxd*v(7)/(Coxd+v(7))*DDT(v(D1,G))),-10,10) }
+
+* drain-source junction capacitance
+ECdsj 9 0 value = { LIMIT((A-Agd)*eps_semi/SQRT(2*eps_semi*(v(D1)+v(2))/q/Nb),0,10n) }
+RCdsj 9 0 1E12
+
+* DRAIN-SOURCE CAPACITANCE
+GCds D1 S value={ LIMIT(v(9)*DDT(v(D1)),-10,10)}
+
+
+
+
+ **** MOSFET CURRENT MODEL ****
+
+.param Kfl = {0.013787}     
+* low current transconductance factor
+.param theta = 0
+* transverse electric field parameter
+.param Kp = {1.8246}
+* saturation region transconductance
+.param Kf = {2} 
+* linear transconductance factor
+.param Vtr = {4.1447}
+* threshold voltage
+.param dVtl = 0
+* low current treshold voltage differential
+.param Vth = {Vtr+Kfl/(1-Kfl)*dVtl}    
+* high current voltage threshold
+.param Vtl = {Vtr-dVtl}				  
+* low current voltage threshold
+.param Pvf = {0.6}
+* pinch-off voltage factor
+.param y = {Kf/(Kf-Pvf/2)}
+
+* low threshold current
+GIMOSL D1 S  value = { IF(v(D1)<=(v(G)-Vtl)/Pvf, 
++	Kfl*Kf*Kp*((v(G)-Vtl)*v(D1)-PWR(Pvf,(y-1))*PWR(v(D1),y)*PWR((v(G)-Vtl),(2-y))/y)
++	/(1+theta*(v(G)-Vtl)),
++	Kfl*Kp*PWR((v(G)-Vtl),2)/2/(1+theta*(v(G)-Vtl))) }
+
+* high threshold current
+GIMOSH D1 S  value = { IF(v(D1)<=(v(G)-Vth)/Pvf, 
++	(1.0-Kfl)*Kf*Kp*((v(G)-Vth)*v(D1)-1/y*PWR(Pvf,(y-1))*PWR(v(D1),y)*PWR(v(G)-Vth,(2-y)))
++ 	/(1+theta*(v(G)-Vth)),
++	(1.0-Kfl)*Kp*PWR(v(G)-Vth,2)/2/(1+theta*(v(G)-Vth))) }
+
+* below high threshold
+GIMOSBHT D1 S  value = { IF(v(G)<= Vth, 
++	-(1.0-Kfl)*Kp*PWR(v(G)-Vth,2)/2/(1+theta*(v(G)-Vth)), 0 ) }
+
+* below low threshold
+GIMOSBLT D1 S  value = { IF(v(G)<= Vtl, 
++	-Kfl*Kp*PWR((v(G)-Vtl),2)/2/(1+theta*(v(G)-Vtl)), 0 ) }
+
+.ends SiCMOS
+
+
+.END
